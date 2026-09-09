@@ -14,17 +14,18 @@ export function getOpencodeModelsRefetchInterval(
     enabled: boolean,
     data: OpencodeModelsResponse | undefined,
     pollCount: number
-): 1000 | false {
-    if (!enabled || pollCount >= MAX_OPENCODE_MODEL_DISCOVERY_POLLS) {
+): 1000 | 15_000 | false {
+    if (!enabled) {
         return false
     }
-    if (!data) {
-        return 1000
+    if (!data || data.success === false) {
+        // Discovery phase: poll quickly, but give up after the bounded number
+        // of attempts (the backend may genuinely not support model listing).
+        return pollCount >= MAX_OPENCODE_MODEL_DISCOVERY_POLLS ? false : 1000
     }
-    if (data.success === false) {
-        return 1000
-    }
-    return (data.availableModels?.length ?? 0) > 0 ? false : 1000
+    // Discovered: keep tracking opencode.json changes at a slower cadence —
+    // staleTime alone never triggers a refetch while this hook stays mounted.
+    return (data.availableModels?.length ?? 0) > 0 ? 15_000 : 1000
 }
 
 export function useOpencodeModels(args: {
