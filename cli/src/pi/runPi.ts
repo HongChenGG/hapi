@@ -857,17 +857,16 @@ export async function runPi(opts: {
             try {
                 const data = await sendPiRpcAndWait(piSession, transport, { type: 'get_available_models' });
                 const models = parsePiModels(data);
-                if (models.length > 0) {
-                    // This handler is polled every 15s by each active Pi session
-                    // view: only version the session metadata (hub DB write +
-                    // Socket.IO/SSE broadcast) when the catalog actually changed.
-                    const modelsChanged = JSON.stringify(piSession.cachedPiModels) !== JSON.stringify(models);
-                    piSession.cachedPiModels = models;
-                    if (modelsChanged) {
-                        piSession.updateMetadata(meta => ({ ...meta, piAvailableModels: models }));
-                    }
-                    return { success: true, availableModels: models, currentModelId: piSession.currentModel };
+                // This handler is polled every 15s by each active Pi session
+                // view: only version the session metadata (hub DB write +
+                // Socket.IO/SSE broadcast) when the catalog actually changed.
+                // Treat a successful empty models list as authoritative too.
+                const modelsChanged = JSON.stringify(piSession.cachedPiModels) !== JSON.stringify(models);
+                piSession.cachedPiModels = models;
+                if (modelsChanged) {
+                    piSession.updateMetadata(meta => ({ ...meta, piAvailableModels: models }));
                 }
+                return { success: true, availableModels: models, currentModelId: piSession.currentModel };
             } catch (error) {
                 logger.debug('[pi] ListPiModels live query failed, falling back to cache:', error);
             }
