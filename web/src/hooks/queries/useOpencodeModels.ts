@@ -54,7 +54,8 @@ export function useOpencodeModels(args: {
             return await api.getSessionOpencodeModels(sessionId)
         },
         enabled,
-        staleTime: 30_000,
+        // Track opencode.json changes quickly (same rationale as usePiModels).
+        staleTime: 15_000,
         retry: (failureCount) => shouldRetryOpencodeModelsQuery(failureCount),
         refetchInterval: (query) => getOpencodeModelsRefetchInterval(
             enabled,

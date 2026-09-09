@@ -25,6 +25,11 @@ interface OpencodeLoopOptions {
     onSessionReady?: (session: OpencodeSession) => void;
     onModelRollback?: (model: string | null) => void;
     onReasoningEffortRollback?: (effort: string | null) => void;
+    // Called when an inline model switch to the ACP backend fails (or is
+    // unsupported) so the caller can roll `sessionModel` back to the model
+    // the backend actually kept using — otherwise keepalives keep reporting
+    // the never-applied model and the hub UI diverges from reality.
+    onModelRollback?: (model: string | null) => void;
     onCompactAvailabilityChange?: (available: boolean) => void;
     onClearRequested?: () => Promise<void>;
     onClearCleanupComplete?: () => Promise<void>;
@@ -84,6 +89,7 @@ export async function opencodeLoop(opts: OpencodeLoopOptions): Promise<void> {
         runRemote: (instance) => opencodeRemoteLauncher(instance, {
             onModelRollback: opts.onModelRollback,
             onReasoningEffortRollback: opts.onReasoningEffortRollback,
+            onModelRollback: opts.onModelRollback,
             onCompactAvailabilityChange: opts.onCompactAvailabilityChange,
             isLocalIdCancelled: opts.isLocalIdCancelled,
             onClearRequested: opts.onClearRequested,
