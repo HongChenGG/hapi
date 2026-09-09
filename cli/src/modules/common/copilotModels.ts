@@ -255,10 +255,21 @@ export async function buildCopilotModelsResponseFromBackend(
     // the create-session form, 60s cache) stays fresh as the subscription
     // catalog changes. Probe first, fall back to the snapshot when it fails;
     // currentModelId always comes from the live session either way.
+    //
+    // The probe is bounded to 5s (Promise.race): listCopilotModelsForCwd can
+    // spend 30s in the headless SDK probe plus up to 120s per ACP request,
+    // while the hub session RPC deadline is 120s — a stalled probe must never
+    // consume it before the snapshot fallback below runs.
     let probeResponse: ListCopilotModelsForCwdResponse | null = null;
+    let probeTimer: ReturnType<typeof setTimeout> | undefined;
     try {
-        const probe = await listCopilotModelsForCwd(cwd ?? process.cwd());
-        if (probe.success && (probe.availableModels?.length ?? 0) > 0) {
+        const probe = await Promise.race([
+            listCopilotModelsForCwd(cwd ?? process.cwd()),
+            new Promise<null>((resolve) => {
+                probeTimer = setTimeout(() => resolve(null), 5_000);
+            }),
+        ]);
+        if (probe?.success && (probe.availableModels?.length ?? 0) > 0) {
             return {
                 success: true,
                 availableModels: probe.availableModels,
@@ -268,6 +279,8 @@ export async function buildCopilotModelsResponseFromBackend(
         probeResponse = probe;
     } catch {
         // fall through to the ACP snapshot below
+    } finally {
+        clearTimeout(probeTimer);
     }
 
     if (parsed.availableModels.length > 0) {

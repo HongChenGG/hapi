@@ -18,14 +18,15 @@ export function getOpencodeModelsRefetchInterval(
     if (!enabled) {
         return false
     }
-    if (!data || data.success === false) {
-        // Discovery phase: poll quickly, but give up after the bounded number
-        // of attempts (the backend may genuinely not support model listing).
-        return pollCount >= MAX_OPENCODE_MODEL_DISCOVERY_POLLS ? false : 1000
+    // Discovered a non-empty catalog: track opencode.json changes at a slower
+    // cadence — staleTime alone never triggers a refetch while mounted.
+    if (data?.success && (data.availableModels?.length ?? 0) > 0) {
+        return 15_000
     }
-    // Discovered: keep tracking opencode.json changes at a slower cadence —
-    // staleTime alone never triggers a refetch while this hook stays mounted.
-    return (data.availableModels?.length ?? 0) > 0 ? 15_000 : 1000
+    // Missing/error/empty responses are "still discovering": poll fast until
+    // the discovery cap, then settle on the slow tracking cadence instead of
+    // hammering the RPC forever (a catalog may legitimately stay empty).
+    return pollCount >= MAX_OPENCODE_MODEL_DISCOVERY_POLLS ? 15_000 : 1000
 }
 
 export function useOpencodeModels(args: {
