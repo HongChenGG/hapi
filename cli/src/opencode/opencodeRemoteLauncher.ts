@@ -326,9 +326,20 @@ class OpencodeRemoteLauncher extends RemoteLauncherBase {
         // an inline switch (or its rollback) is reflected accurately.
         session.client.rpcHandlerManager.registerHandler(RPC_METHODS.ListOpencodeModels, async () => {
             const metadata = backend.getSessionModelsMetadata?.(acpSessionId);
+            // The hub enforces a 30s deadline on this session RPC, while the probe
+            // itself allows two sequential 30s ACP requests — a stalled probe would
+            // eat the whole deadline before the snapshot fallback below could run,
+            // turning a working picker into a hard RPC failure. Bound the probe to
+            // 5s and fall back whenever it did not produce a non-empty catalog.
+            let probeTimer: ReturnType<typeof setTimeout> | undefined;
             try {
-                const probe = await listOpencodeModelsForCwd(session.path);
-                if (probe.success) {
+                const probe = await Promise.race([
+                    listOpencodeModelsForCwd(session.path),
+                    new Promise<null>((resolve) => {
+                        probeTimer = setTimeout(() => resolve(null), 5_000);
+                    }),
+                ]);
+                if (probe?.success && (probe.availableModels?.length ?? 0) > 0) {
                     return {
                         success: true,
                         availableModels: probe.availableModels,
@@ -337,6 +348,8 @@ class OpencodeRemoteLauncher extends RemoteLauncherBase {
                 }
             } catch (error) {
                 logger.debug('[opencode-remote] Live model probe failed, falling back to session snapshot:', error);
+            } finally {
+                clearTimeout(probeTimer);
             }
             if (!metadata) {
                 return { success: false, error: 'OpenCode model metadata is not available' };

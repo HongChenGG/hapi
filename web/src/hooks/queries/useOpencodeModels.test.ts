@@ -14,18 +14,21 @@ describe('useOpencodeModels retry policy', () => {
         expect(getOpencodeModelsRefetchInterval(true, { success: false, error: 'not ready' }, 2)).toBe(1000)
     })
 
-    it('stops polling once model options are available or the query is disabled', () => {
+    it('keeps tracking at a slower cadence once model options are available, stops when disabled', () => {
         expect(getOpencodeModelsRefetchInterval(true, {
             success: true,
             availableModels: [{ modelId: 'provider/model', name: 'Provider Model' }],
             currentModelId: 'provider/model'
-        }, 1)).toBe(false)
+        }, 1)).toBe(15_000)
         expect(getOpencodeModelsRefetchInterval(false, undefined, 0)).toBe(false)
     })
 
-    it('stops polling after the discovery poll cap', () => {
+    it('stops the fast discovery polling after the poll cap, but keeps slow tracking once discovered', () => {
         expect(getOpencodeModelsRefetchInterval(true, undefined, 10)).toBe(false)
-        expect(getOpencodeModelsRefetchInterval(true, { success: true, availableModels: [] }, 10)).toBe(false)
         expect(getOpencodeModelsRefetchInterval(true, { success: false, error: 'not ready' }, 10)).toBe(false)
+        // A successful but empty catalog is still “discovered” (models may register late):
+        // keep polling at the fast cadence for discovery, and once non-empty, slow-track.
+        expect(getOpencodeModelsRefetchInterval(true, { success: true, availableModels: [] }, 10)).toBe(1000)
+        expect(getOpencodeModelsRefetchInterval(true, { success: true, availableModels: [] }, 1)).toBe(1000)
     })
 })
