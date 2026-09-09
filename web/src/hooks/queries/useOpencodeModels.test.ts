@@ -24,11 +24,10 @@ describe('useOpencodeModels retry policy', () => {
     })
 
     it('stops the fast discovery polling after the poll cap, but keeps slow tracking once discovered', () => {
-        expect(getOpencodeModelsRefetchInterval(true, undefined, 10)).toBe(false)
-        expect(getOpencodeModelsRefetchInterval(true, { success: false, error: 'not ready' }, 10)).toBe(false)
-        // A successful but empty catalog is still “discovered” (models may register late):
-        // keep polling at the fast cadence for discovery, and once non-empty, slow-track.
-        expect(getOpencodeModelsRefetchInterval(true, { success: true, availableModels: [] }, 10)).toBe(1000)
+        expect(getOpencodeModelsRefetchInterval(true, undefined, 10)).toBe(15_000)
+        expect(getOpencodeModelsRefetchInterval(true, { success: false, error: 'not ready' }, 10)).toBe(15_000)
+        // A successful-but-empty catalog is also capped out of fast polling.
+        expect(getOpencodeModelsRefetchInterval(true, { success: true, availableModels: [] }, 10)).toBe(15_000)
         expect(getOpencodeModelsRefetchInterval(true, { success: true, availableModels: [] }, 1)).toBe(1000)
     })
 })
