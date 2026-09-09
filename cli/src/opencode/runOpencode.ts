@@ -542,14 +542,6 @@ export async function runOpencode(opts: {
             onReasoningEffortRollback: (effort) => {
                 sessionModelReasoningEffort = effort;
             },
-            onModelRollback: (model) => {
-                // An inline switch to the ACP backend failed; keep
-                // `sessionModel` on the model the backend actually kept so
-                // keepalives and the next turn's buildMode() stop reporting
-                // the never-applied id. The keepalive tick persists the
-                // rolled-back value, so the hub's stored model converges too.
-                sessionModel = model;
-            },
             onSessionReady: (instance) => {
                 sessionWrapperRef.current = instance;
                 syncSessionMode();

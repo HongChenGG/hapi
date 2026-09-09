@@ -29,11 +29,6 @@ import { listOpencodeModelsForCwd } from '@/modules/common/opencodeModels';
 type OpencodeRemoteLauncherOptions = {
     onModelRollback?: (model: string | null) => void;
     onReasoningEffortRollback?: (effort: string | null) => void;
-    // Called when an inline model switch fails (or is unsupported) with the
-    // model the backend actually kept using. Mirrors onReasoningEffortRollback:
-    // runOpencode.ts resets its `sessionModel` variable so keepalives and the
-    // next turn's buildMode() reflect reality instead of the never-applied id.
-    onModelRollback?: (model: string | null) => void;
     // Called with `true` once the ACP backend + internal HTTP baseUrl are
     // ready (so /compact can actually run) and with `false` whenever this
     // session leaves remote mode. runOpencode.ts uses this to decide whether
