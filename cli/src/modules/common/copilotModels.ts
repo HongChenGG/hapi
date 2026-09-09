@@ -251,6 +251,25 @@ export async function buildCopilotModelsResponseFromBackend(
         }] : []
     });
 
+    // The ACP metadata snapshot freezes at session/new; the probe (shared with
+    // the create-session form, 60s cache) stays fresh as the subscription
+    // catalog changes. Probe first, fall back to the snapshot when it fails;
+    // currentModelId always comes from the live session either way.
+    let probeResponse: ListCopilotModelsForCwdResponse | null = null;
+    try {
+        const probe = await listCopilotModelsForCwd(cwd ?? process.cwd());
+        if (probe.success && (probe.availableModels?.length ?? 0) > 0) {
+            return {
+                success: true,
+                availableModels: probe.availableModels,
+                currentModelId: parsed.currentModelId ?? metadata?.currentModelId ?? null
+            };
+        }
+        probeResponse = probe;
+    } catch {
+        // fall through to the ACP snapshot below
+    }
+
     if (parsed.availableModels.length > 0) {
         return {
             success: true,
@@ -259,10 +278,10 @@ export async function buildCopilotModelsResponseFromBackend(
         };
     }
 
-    // ACP has no catalog — reuse subscription-aware SDK list (cached).
-    const response = await listCopilotModelsForCwd(cwd ?? process.cwd());
+    // Probe failed and ACP has no catalog — surface the probe's error (or a
+    // generic one) rather than throwing past the RPC handler.
     return {
-        ...response,
-        currentModelId: parsed.currentModelId ?? response.currentModelId ?? null
+        ...(probeResponse ?? { success: false as const, error: 'Failed to list Copilot models' }),
+        currentModelId: parsed.currentModelId ?? metadata?.currentModelId ?? null
     };
 }

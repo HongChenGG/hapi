@@ -24,10 +24,16 @@ import {
 import { OpencodePermissionHandler } from './utils/permissionHandler';
 import { getOpencodeNativeToolInstruction, PLAN_MODE_INSTRUCTION } from './utils/systemPrompt';
 import { resolveThoughtLevelEffort } from './thoughtLevelEffort';
+import { listOpencodeModelsForCwd } from '@/modules/common/opencodeModels';
 
 type OpencodeRemoteLauncherOptions = {
     onModelRollback?: (model: string | null) => void;
     onReasoningEffortRollback?: (effort: string | null) => void;
+    // Called when an inline model switch fails (or is unsupported) with the
+    // model the backend actually kept using. Mirrors onReasoningEffortRollback:
+    // runOpencode.ts resets its `sessionModel` variable so keepalives and the
+    // next turn's buildMode() reflect reality instead of the never-applied id.
+    onModelRollback?: (model: string | null) => void;
     // Called with `true` once the ACP backend + internal HTTP baseUrl are
     // ready (so /compact can actually run) and with `false` whenever this
     // session leaves remote mode. runOpencode.ts uses this to decide whether
@@ -308,10 +314,30 @@ class OpencodeRemoteLauncher extends RemoteLauncherBase {
             this.options.onCompactAvailabilityChange?.(true);
         }
 
-        // Expose the cached models metadata via per-session RPC so the hub can
-        // forward it to the web UI's model selector without round-tripping ACP.
+        // Expose the model catalog via per-session RPC so the hub can forward
+        // it to the web UI's model selector without round-tripping ACP.
+        //
+        // The ACP metadata snapshot freezes at session/new, but opencode
+        // watches its config and picks up provider/model changes at runtime
+        // (config.updated) — so the in-session picker must not serve that
+        // stale snapshot. Probe instead (shared with the create-session form,
+        // 60s cache, same-source list); fall back to the snapshot if the
+        // probe fails. currentModelId still comes from the live session so
+        // an inline switch (or its rollback) is reflected accurately.
         session.client.rpcHandlerManager.registerHandler(RPC_METHODS.ListOpencodeModels, async () => {
             const metadata = backend.getSessionModelsMetadata?.(acpSessionId);
+            try {
+                const probe = await listOpencodeModelsForCwd(session.path);
+                if (probe.success) {
+                    return {
+                        success: true,
+                        availableModels: probe.availableModels,
+                        currentModelId: metadata?.currentModelId ?? probe.currentModelId
+                    };
+                }
+            } catch (error) {
+                logger.debug('[opencode-remote] Live model probe failed, falling back to session snapshot:', error);
+            }
             if (!metadata) {
                 return { success: false, error: 'OpenCode model metadata is not available' };
             }
@@ -859,8 +885,13 @@ class OpencodeRemoteLauncher extends RemoteLauncherBase {
         this.options.onReasoningEffortRollback?.(effort);
     }
 
+    /** An inline model switch failed (or is unsupported): put the batch, the
+     *  session keepalive state, and the caller's `sessionModel` variable all
+     *  back on the model the backend actually kept using. Without the caller
+     *  callback the hub would keep displaying the never-applied model while
+     *  every subsequent turn retried the doomed switch. */
     private rollbackModel(batch: { mode: OpencodeMode }, model: string | null): void {
-        batch.mode.model = model ?? undefined;
+        batch.mode.model = model;
         this.session.setModel(model);
         this.session.pushKeepAlive();
         this.options.onModelRollback?.(model);

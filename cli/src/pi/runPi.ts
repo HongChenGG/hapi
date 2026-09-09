@@ -847,6 +847,24 @@ export async function runPi(opts: {
     apiSession.rpcHandlerManager.registerHandler<Record<string, never>, ListPiModelsResponse>(
         RPC_METHODS.ListPiModels,
         async () => {
+            // Re-query the live Pi process on every request instead of serving
+            // the startup cache: a models-hot-reload extension (or any future
+            // refresh path) can change Pi's model catalog mid-session, and the
+            // picker must track it. The cache remains only as a fallback for
+            // when the RPC fails, and is refreshed so downstream consumers
+            // (e.g. SetSessionConfig's provider lookup for bare model ids)
+            // see the latest catalog too.
+            try {
+                const data = await sendPiRpcAndWait(piSession, transport, { type: 'get_available_models' });
+                const models = parsePiModels(data);
+                if (models.length > 0) {
+                    piSession.cachedPiModels = models;
+                    piSession.updateMetadata(meta => ({ ...meta, piAvailableModels: models }));
+                    return { success: true, availableModels: models, currentModelId: piSession.currentModel };
+                }
+            } catch (error) {
+                logger.debug('[pi] ListPiModels live query failed, falling back to cache:', error);
+            }
             if (piSession.cachedPiModels.length > 0) {
                 return {
                     success: true,
@@ -854,21 +872,10 @@ export async function runPi(opts: {
                     currentModelId: piSession.currentModel,
                 };
             }
-            try {
-                const data = await sendPiRpcAndWait(piSession, transport, { type: 'get_available_models' });
-                const models = parsePiModels(data);
-                if (models.length > 0) {
-                    piSession.cachedPiModels = models;
-                    piSession.updateMetadata(meta => ({ ...meta, piAvailableModels: models }));
-                }
-                return { success: true, availableModels: models, currentModelId: piSession.currentModel };
-            } catch (error) {
-                logger.debug('[pi] ListPiModels RPC failed:', error);
-                return {
-                    success: false,
-                    error: error instanceof Error ? error.message : 'Failed to list Pi models',
-                };
-            }
+            return {
+                success: false,
+                error: 'Failed to list Pi models',
+            };
         }
     );
 
