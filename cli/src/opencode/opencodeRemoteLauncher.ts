@@ -898,13 +898,8 @@ class OpencodeRemoteLauncher extends RemoteLauncherBase {
         this.options.onReasoningEffortRollback?.(effort);
     }
 
-    /** An inline model switch failed (or is unsupported): put the batch, the
-     *  session keepalive state, and the caller's `sessionModel` variable all
-     *  back on the model the backend actually kept using. Without the caller
-     *  callback the hub would keep displaying the never-applied model while
-     *  every subsequent turn retried the doomed switch. */
     private rollbackModel(batch: { mode: OpencodeMode }, model: string | null): void {
-        batch.mode.model = model;
+        batch.mode.model = model ?? undefined;
         this.session.setModel(model);
         this.session.pushKeepAlive();
         this.options.onModelRollback?.(model);
