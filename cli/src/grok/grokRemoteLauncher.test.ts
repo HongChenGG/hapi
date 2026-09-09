@@ -197,6 +197,17 @@ describe('grokRemoteLauncher runtime config', () => {
             availableModels: [{ modelId: 'grok-live', name: 'Live Grok' }],
             currentModelId: 'grok-a'
         })
+        // Empty live probe is authoritative too
+        listGrokModelsMock.mockResolvedValueOnce({
+            success: true,
+            availableModels: [],
+            currentModelId: null
+        })
+        expect(await rpcHandlers.get('listGrokModels')?.()).toMatchObject({
+            success: true,
+            availableModels: [],
+            currentModelId: 'grok-a'
+        })
         expect(await rpcHandlers.get('listGrokReasoningEffortOptions')?.()).toMatchObject({ success: true, currentValue: 'low' })
     })
 

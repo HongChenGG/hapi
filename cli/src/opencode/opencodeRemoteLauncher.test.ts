@@ -2071,6 +2071,27 @@ describe('opencodeRemoteLauncher inline model switch', () => {
         });
     });
 
+    it('listOpencodeModels handler treats successful empty probe as authoritative', async () => {
+        listOpencodeModelsMock.mockResolvedValueOnce({
+            success: true,
+            availableModels: [],
+            currentModelId: null
+        });
+        const { session, rpcHandlers } = createSessionStub([
+            { message: 'first', mode: createMode() }
+        ]);
+        await opencodeRemoteLauncher(session as never);
+
+        const handler = rpcHandlers.get('listOpencodeModels');
+        expect(handler).toBeDefined();
+        const result = await handler!(undefined) as Record<string, unknown>;
+        expect(result).toEqual({
+            success: true,
+            availableModels: [],
+            currentModelId: null
+        });
+    });
+
     it('registers a listOpencodeReasoningEffortOptions RPC handler that returns ACP options', async () => {
         harness.thoughtLevelOption = {
             id: 'effort',

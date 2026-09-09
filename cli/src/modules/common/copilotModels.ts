@@ -269,10 +269,10 @@ export async function buildCopilotModelsResponseFromBackend(
                 probeTimer = setTimeout(() => resolve(null), 5_000);
             }),
         ]);
-        if (probe?.success && (probe.availableModels?.length ?? 0) > 0) {
+        if (probe?.success) {
             return {
                 success: true,
-                availableModels: probe.availableModels,
+                availableModels: probe.availableModels ?? [],
                 currentModelId: parsed.currentModelId ?? metadata?.currentModelId ?? null
             };
         }

@@ -222,11 +222,11 @@ class GrokRemoteLauncher extends RemoteLauncherBase {
                         probeTimer = setTimeout(() => resolve(null), 5_000)
                     }),
                 ])
-                if (probe?.success && (probe.availableModels?.length ?? 0) > 0) {
+                if (probe?.success) {
                     return {
                         success: true,
-                        availableModels: probe.availableModels,
-                        currentModelId: metadata?.currentModelId ?? probe.currentModelId,
+                        availableModels: probe.availableModels ?? [],
+                        currentModelId: metadata?.currentModelId ?? probe.currentModelId ?? null,
                         autoPermissionModeSupported: backend.hasAvailableCommand(acpSessionId, 'auto')
                     }
                 }
