@@ -76,7 +76,7 @@ struct AgentTextBlockView: View {
     let block: AgentTextBlock
 
     var body: some View {
-        MarkdownView(markdown: block.text)
+        CachedMarkdownView(markdown: block.text)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -85,7 +85,12 @@ struct AgentTextBlockView: View {
 /// the full reasoning markdown (still subdued — it is meta-content).
 struct AgentReasoningBlockView: View {
     let block: AgentReasoningBlock
-    @State private var expanded = false
+    @ChatStoredState private var expanded: Bool
+
+    init(block: AgentReasoningBlock) {
+        self.block = block
+        _expanded = ChatStoredState(wrappedValue: false, id: block.id, field: "expanded")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -103,7 +108,7 @@ struct AgentReasoningBlockView: View {
             }
             .buttonStyle(.plain)
             if expanded {
-                MarkdownView(markdown: block.text)
+                CachedMarkdownView(markdown: block.text)
                     .opacity(0.75)
                     .padding(.leading, 8)
             }

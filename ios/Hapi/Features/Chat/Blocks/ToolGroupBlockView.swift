@@ -11,18 +11,22 @@ struct ToolGroupBlockView: View {
     let basePath: String?
 
     @State private var expanded: Bool
+    private let expansion: Binding<Bool>?
+    private let showsTools: Bool
     @Environment(\.hapiTheme) private var theme
 
-    init(block: ToolGroupBlock, basePath: String?) {
+    init(block: ToolGroupBlock, basePath: String?, expansion: Binding<Bool>? = nil, showsTools: Bool = true) {
         self.block = block
         self.basePath = basePath
         _expanded = State(initialValue: block.defaultOpen)
+        self.expansion = expansion
+        self.showsTools = showsTools
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerRow
-            if expanded {
+            if showsTools && (expansion?.wrappedValue ?? expanded) {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(block.tools, id: \.id) { tool in
                         ToolCallBlockView(block: tool, basePath: basePath)
@@ -40,7 +44,8 @@ struct ToolGroupBlockView: View {
     private var headerRow: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.15)) {
-                expanded.toggle()
+                if let expansion { expansion.wrappedValue.toggle() }
+                else { expanded.toggle() }
             }
         } label: {
             HStack(spacing: 8) {
@@ -106,7 +111,7 @@ struct ToolGroupBlockView: View {
                 .font(.caption2)
                 .foregroundStyle(.red)
         } else {
-            Image(systemName: expanded ? "chevron.down" : "chevron.right")
+            Image(systemName: (expansion?.wrappedValue ?? expanded) ? "chevron.down" : "chevron.right")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

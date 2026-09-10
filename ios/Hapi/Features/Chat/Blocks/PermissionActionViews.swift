@@ -120,8 +120,8 @@ private struct AskUserQuestionFooter: View {
     private let questions: [AskQuestion]
 
     /// Selection state per question index.
-    @State private var selected: [Int: Set<Int>] = [:]
-    @State private var otherText: [Int: String] = [:]
+    @ChatStoredState private var selected: [Int: Set<Int>]
+    @ChatStoredState private var otherText: [Int: String]
     @State private var validationError: String?
 
     init(tool: ChatToolCall, requestId: String, interactions: ChatInteractor) {
@@ -130,6 +130,8 @@ private struct AskUserQuestionFooter: View {
         self.interactions = interactions
         self.cursorDialect = isCursorAskQuestionToolName(tool.name)
         self.questions = parseAskUserQuestions(tool.input, cursorDialect: cursorDialect)
+        _selected = ChatStoredState(wrappedValue: [:], id: requestId, field: "ask.selected")
+        _otherText = ChatStoredState(wrappedValue: [:], id: requestId, field: "ask.other")
     }
 
     var body: some View {
@@ -289,8 +291,8 @@ private struct RequestUserInputFooter: View {
 
     private let questions: [RequestUserInputQuestion]
 
-    @State private var selected: [String: Set<String>] = [:]
-    @State private var notes: [String: String]
+    @ChatStoredState private var selected: [String: Set<String>]
+    @ChatStoredState private var notes: [String: String]
     @State private var validationError: String?
 
     init(tool: ChatToolCall, requestId: String, interactions: ChatInteractor) {
@@ -301,10 +303,11 @@ private struct RequestUserInputFooter: View {
         self.questions = parsed
         // Duplicate field ids are malformed input; keep the first rather
         // than trapping.
-        _notes = State(initialValue: Dictionary(
+        _selected = ChatStoredState(wrappedValue: [:], id: requestId, field: "input.selected")
+        _notes = ChatStoredState(wrappedValue: Dictionary(
             parsed.map { ($0.id, $0.prefill ?? "") },
             uniquingKeysWith: { first, _ in first }
-        ))
+        ), id: requestId, field: "input.notes")
     }
 
     var body: some View {

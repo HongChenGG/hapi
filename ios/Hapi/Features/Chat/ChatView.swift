@@ -46,7 +46,7 @@ struct ChatView: View {
                 initialLoading
             } else if model.loadFailed {
                 loadFailedState
-            } else if model.blocks.isEmpty {
+            } else if model.blocks.isEmpty && !model.hasMore {
                 emptyState
             } else {
                 ChatTranscriptView(model: model)
@@ -145,6 +145,8 @@ struct ChatView: View {
             )
         }
         .environment(\.chatMedia, model.imageLoader)
+        .environment(\.chatPresentationState, model.presentationState)
+        .environment(\.hapiMarkdownCache, model.markdownCache)
         .environment(\.chatInteractions, model.interactor)
         .onChange(of: model.supersededSessionId) {
             if let superseding = model.supersededSessionId {

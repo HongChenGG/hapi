@@ -13,8 +13,8 @@ struct ToolCallBlockView: View {
     let block: ToolCallBlock
     let basePath: String?
 
-    @State private var expanded: Bool
-    @State private var childrenOpen: Bool
+    @ChatStoredState private var expanded: Bool
+    @ChatStoredState private var childrenOpen: Bool
     @Environment(\.hapiTheme) private var theme
     @Environment(\.chatInteractions) private var interactions
 
@@ -22,8 +22,8 @@ struct ToolCallBlockView: View {
         self.block = block
         self.basePath = basePath
         let pending = block.tool.permission?.status == .pending
-        _expanded = State(initialValue: pending)
-        _childrenOpen = State(initialValue: pending)
+        _expanded = ChatStoredState(wrappedValue: pending, id: block.id, field: "expanded")
+        _childrenOpen = ChatStoredState(wrappedValue: pending, id: block.id, field: "children")
     }
 
     var body: some View {

@@ -16,6 +16,9 @@ it shares only the protocol contract (`docs/api/`) and the golden fixtures
 
 ## Build
 
+Native chat scrolling architecture and acceptance checklist:
+[Native transcript scrolling](../docs/native-chat-scrolling.md).
+
 Open `ios/Hapi.xcodeproj` in Xcode and run the shared `Hapi` scheme, or from
 the command line:
 
@@ -106,9 +109,9 @@ ios/
                                       ChatPipeline off-main, ~100 ms
                                       coalesced, last-seen stamping, header
                                       cascade; ChatView — bottom-anchored
-                                      ScrollView/LazyVStack with auto-stick,
-                                      new-messages pill, top sentinel paging
-                                      with scroll re-anchoring, degraded
+                                      UICollectionView with cached heights,
+                                      ID/offset anchoring, viewport paging,
+                                      explicit return-to-latest, degraded
                                       banners; Blocks/ — user bubble, agent
                                       markdown, reasoning, tool cards with
                                       per-tool bodies + knownTools-parity
