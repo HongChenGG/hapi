@@ -21,7 +21,6 @@ private enum TranscriptRow: Identifiable, Equatable {
 
 struct ChatTranscriptView: View {
     let model: ChatModel
-    @Environment(\.self) private var environment
 
     private var rows: [TranscriptRow] {
         var rows: [TranscriptRow] = [.history(model.historyPaging.phase, model.hasMore)]
@@ -50,8 +49,8 @@ struct ChatTranscriptView: View {
             },
             onLayout: { version, progress in model.historyLaidOut(version: version, madeProgress: progress) }
         ) { row in
-            // HostingConfiguration creates a new root: inherit app services.
-            AnyView(rowView(row).environment(\.self, environment))
+            // The list bridges the current environment into its hosting roots.
+            AnyView(rowView(row))
         }
         .overlay(alignment: .bottomTrailing) {
             if !model.followsTail || model.hasTrimmedTail || model.isJumpingToLatest {

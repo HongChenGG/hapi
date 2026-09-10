@@ -81,7 +81,18 @@ android {
             // null when no upload key is configured → unsigned release.
             signingConfig = signingConfigs.findByName("release")
         }
+        create("profile") {
+            initWith(getByName("release"))
+            // Optimized/non-debuggable, but unminified so diagnostic stacks
+            // and instrumentation access remain readable. Never distributed.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
+
+    testBuildType = providers.gradleProperty("hapiTestBuildType").orElse("debug").get()
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -161,6 +172,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    add("profileImplementation", libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.runner)

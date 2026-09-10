@@ -21,14 +21,15 @@ final class TranscriptGeometryTests: XCTestCase {
         }
         layout.prepare()
 
-        func verify(width: CGFloat) {
+        @MainActor func verify(width: CGFloat) {
             var y: CGFloat = 10
             let expected = ids.map { id -> CGRect in
                 let frame = CGRect(x: 12, y: y, width: width - 24, height: heights[id] ?? 100)
                 y = frame.maxY + 10
                 return frame
             }
-            XCTAssertEqual(layout.collectionViewContentSize.height, y, accuracy: 0.01)
+            let actualHeight = layout.collectionViewContentSize.height
+            XCTAssertEqual(actualHeight, y, accuracy: 0.01)
             let rects = stride(from: -500, to: Int(y) + 500, by: 377).map {
                 CGRect(x: 0, y: $0, width: Int(width), height: 844)
             } + [.zero, .null, .infinite, CGRect(x: 1000, y: 0, width: 100, height: 100000)]

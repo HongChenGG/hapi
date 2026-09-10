@@ -57,6 +57,15 @@ affected suffix's geometry, without allocating attributes for offscreen rows.
 Attributes are cached lazily and never mutated after being handed to UIKit;
 unchanged IDs/width do not rebuild geometry on a content-only refresh.
 
+Only changed row values or widths request diffable reconfiguration. Existing
+hosting roots read a shared observable renderer and the latest representable
+environment; SwiftUI diffs their content without reinstalling every visible
+hosting configuration. This preserves theme, Dynamic Type, locale, direction,
+services, and action/value captures without an incomplete environment whitelist.
+The row builder executes inside a SwiftUI body so row-owned observable reads
+belong to the row. Dynamic heights still use UIKit self-sizing; no frozen-height
+or measurement-result cache is introduced.
+
 `ChatPresentationState` keeps expansion/form state outside recycled cells,
 pruned to retained message/request IDs. Expanded tool groups become individual
 display rows, without changing protocol groups. The per-chat Markdown cache
@@ -130,6 +139,11 @@ coordinator/store cancellation, retry, cursor, and retention behavior.
 Stateful group-ID tests cover splits, inherited-ID collisions, prepends, and
 stable recomputes. UIKit tests also verify that regrouping preserves both
 groups and the existing reading anchor, plus duplicate-delivery handling.
+`TranscriptRefreshTests` verifies that offscreen streaming does not reconfigure
+unchanged visible cells, while visible edits resize, recycled rows see the
+latest data, and equal items receive updated environments and action captures.
+Debug counters also check the zero-configuration budget for ordinary context
+updates; UIKit may request cells itself when layout-direction traits change.
 Replay-gap tests cover same-epoch retention, epoch/reset replacement, and
 trailing validation. App coordinators cover a slow invalidated page returning
 after tail sync; Compose tests cover saved-screen and saved-instance-state
@@ -139,6 +153,9 @@ acknowledged pages (including acknowledgement before request completion),
 and restores expanded child-row anchors across navigation and saved state.
 
 These are deterministic layout regressions, not proof of release-device FPS.
+
+Real-clock simulator measurements, CPU sampling, differential-refresh results,
+and limitations: [Simulator scroll profiling](native-chat-scroll-profile.md).
 
 ### Scroll work budgets
 

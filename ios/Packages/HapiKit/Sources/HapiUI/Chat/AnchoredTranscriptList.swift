@@ -1,4 +1,5 @@
 #if os(iOS)
+import Observation
 import SwiftUI
 import UIKit
 import os
@@ -19,6 +20,7 @@ public struct AnchoredTranscriptList<Item: Identifiable & Equatable>: UIViewCont
     public var onViewport: (TranscriptViewport) -> Void
     public var onLayout: (Int, Bool) -> Void
     public var content: (Item) -> AnyView
+    fileprivate var environment = EnvironmentValues()
 
     public init(items: [Item], historyVersion: Int, jumpToken: Int, historyControlID: String,
                 onViewport: @escaping (TranscriptViewport) -> Void,
@@ -38,7 +40,9 @@ public struct AnchoredTranscriptList<Item: Identifiable & Equatable>: UIViewCont
     }
 
     public func updateUIViewController(_ controller: TranscriptCollectionController<Item>, context: Context) {
-        controller.update(self)
+        var next = self
+        next.environment = context.environment
+        controller.update(next)
     }
 }
 
@@ -204,6 +208,25 @@ private final class TranscriptCollectionView: UICollectionView {
     }
 }
 
+/// Keep hosting roots alive across unrelated transcript updates. The small
+/// SwiftUI wrapper reads the latest builder and inherited environment,
+/// including action captures. SwiftUI can diff the resulting row instead of UIKit
+/// reinstalling every visible hosting configuration and measuring it again.
+@MainActor @Observable
+private final class TranscriptContent<Item> {
+    var render: (Item) -> AnyView = { _ in AnyView(EmptyView()) }
+    var environment = EnvironmentValues()
+}
+
+private struct TranscriptHostedRow<Item>: View {
+    let item: Item
+    let content: TranscriptContent<Item>
+
+    var body: some View {
+        content.render(item).environment(\.self, content.environment)
+    }
+}
+
 public final class TranscriptCollectionController<Item: Identifiable & Equatable>: UIViewController, UICollectionViewDelegate where Item.ID == String {
     private let layout = TranscriptLayout()
     private lazy var collection = TranscriptCollectionView(frame: .zero, collectionViewLayout: layout)
@@ -218,6 +241,10 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
     private var lastJumpToken = 0
     private var reportScheduled = false
     private var lastViewport: TranscriptViewport?
+    private let content = TranscriptContent<Item>()
+    #if DEBUG
+    private(set) var cellConfigurationCount = 0
+    #endif
     private let logger = Logger(subsystem: "run.hapi", category: "Transcript")
 
     public override func loadView() { view = collection }
@@ -237,10 +264,13 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
         }
         source = UICollectionViewDiffableDataSource<Int, String>(collectionView: collection) { [weak self] view, index, id in
             let cell = view.dequeueReusableCell(withReuseIdentifier: "message", for: index)
-            guard let self, let item = self.values[id], let configuration = self.configuration else { return cell }
+            guard let self, let item = self.values[id] else { return cell }
+            #if DEBUG
+            self.cellConfigurationCount += 1
+            #endif
             let width = max(1, view.bounds.width - 24)
             cell.contentConfiguration = UIHostingConfiguration {
-                configuration.content(item)
+                TranscriptHostedRow(item: item, content: self.content)
                     .id(id)
                     .frame(width: width, alignment: .leading)
             }.margins(.all, 0)
@@ -303,11 +333,7 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
         let oldIDs = Set(items.map(\.id))
         let oldHeight = layout.collectionViewContentSize.height
         let widthChanged = abs(configuredWidth - collection.bounds.width) > 0.5
-        // Hosting roots inherit a snapshot of SwiftUI's environment. Refresh
-        // only visible roots for context changes (theme, text size, basePath),
-        // in addition to rows whose value actually changed.
-        let visibleIDs = Set(collection.indexPathsForVisibleItems.compactMap { source.itemIdentifier(for: $0) })
-        let changed = next.items.filter { widthChanged || values[$0.id] != $0 || visibleIDs.contains($0.id) }.map(\.id)
+        let changed = next.items.filter { widthChanged || values[$0.id] != $0 }.map(\.id)
         let structureChanged = items.map(\.id) != next.items.map(\.id)
         let jump = next.jumpToken != lastJumpToken
         lastJumpToken = next.jumpToken
@@ -315,6 +341,10 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
         // Capture at COMMIT, after any reader motion during the request.
         layout.anchorForUpdate = layout.followsTail ? nil : captureAnchor()
         configuration = next
+        // Do not compare/whitelist EnvironmentValues: custom services and
+        // closure captures must propagate too, even when every Item is equal.
+        content.render = next.content
+        content.environment = next.environment
         items = next.items
         values = nextValues
         configuredWidth = collection.bounds.width
