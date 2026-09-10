@@ -22,10 +22,11 @@ final class TranscriptGeometryTests: XCTestCase {
         layout.prepare()
 
         @MainActor func verify(width: CGFloat) {
-            var y: CGFloat = 10
+            var y: CGFloat = 12
+            let contentWidth = HapiReadingLayout.contentWidth(in: width)
             let expected = ids.map { id -> CGRect in
-                let frame = CGRect(x: 12, y: y, width: width - 24, height: heights[id] ?? 100)
-                y = frame.maxY + 10
+                let frame = CGRect(x: (width - contentWidth) / 2, y: y, width: contentWidth, height: heights[id] ?? 100)
+                y = frame.maxY + 12
                 return frame
             }
             let actualHeight = layout.collectionViewContentSize.height
@@ -54,6 +55,32 @@ final class TranscriptGeometryTests: XCTestCase {
         layout.prepare()
         XCTAssertTrue(layout.layoutAttributesForElements(in: .infinite)?.isEmpty == true)
         XCTAssertNil(layout.layoutAttributesForItem(at: IndexPath(item: 0, section: 0)))
+        XCTAssertEqual(collection.collectionViewLayout, layout)
+    }
+
+    func testMetricsInvalidateOffscreenHeightsButTabletRecenteringDoesNot() throws {
+        let layout = TranscriptLayout()
+        let collection = UICollectionView(frame: CGRect(x: 0, y: 0, width: 1024, height: 768), collectionViewLayout: layout)
+        let ids = (0..<80).map(String.init)
+        let spacing = ids.indices.map { $0 == 30 ? CGFloat(24) : 12 }
+        layout.setItems(ids, width: 1024, spacingBefore: spacing)
+        layout.prepare()
+        let original = try XCTUnwrap(layout.layoutAttributesForItem(at: IndexPath(item: 30, section: 0)))
+        let preferred = original.copy() as! UICollectionViewLayoutAttributes
+        preferred.size.height = 450
+        _ = layout.invalidationContext(forPreferredLayoutAttributes: preferred, withOriginalAttributes: original)
+        layout.prepare()
+        layout.setItems(ids, width: 768, spacingBefore: spacing)
+        layout.prepare()
+        let centered = try XCTUnwrap(layout.layoutAttributesForItem(at: original.indexPath))
+        XCTAssertEqual(centered.frame.width, 720)
+        XCTAssertEqual(centered.frame.minX, 24)
+        XCTAssertEqual(centered.frame.height, 450, "Same reading width retains valid heights")
+        let preceding = try XCTUnwrap(layout.layoutAttributesForItem(at: IndexPath(item: 29, section: 0)))
+        XCTAssertEqual(centered.frame.minY - preceding.frame.maxY, 24)
+        layout.setItems(ids, width: 768, spacingBefore: spacing, invalidateMeasurements: true)
+        layout.prepare()
+        XCTAssertEqual(layout.layoutAttributesForItem(at: original.indexPath)?.frame.height, 100)
         XCTAssertEqual(collection.collectionViewLayout, layout)
     }
 

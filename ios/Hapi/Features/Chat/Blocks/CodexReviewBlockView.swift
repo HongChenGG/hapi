@@ -122,7 +122,7 @@ private struct FindingRow: View {
                 .font(.footnote)
             if let location = formatLocation(finding) {
                 Text(location)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
         }

@@ -10,6 +10,16 @@ private enum TranscriptRow: Identifiable, Equatable {
     case group(ToolGroupBlock, Bool)
 
     static let historyID = "chat-history-control"
+    var role: TranscriptRowRole {
+        switch self {
+        case .history: .history
+        case .group: .tool
+        case .message(.toolGroup): .tool
+        case .message(.block(.userText)): .user
+        case .message(.block(.toolCall)): .tool
+        default: .content
+        }
+    }
     var id: String {
         switch self {
         case .history: Self.historyID
@@ -47,7 +57,8 @@ struct ChatTranscriptView: View {
             onViewport: { viewport in
                 model.readingViewportChanged(followsTail: viewport.followsTail, needsOlder: viewport.needsOlder)
             },
-            onLayout: { version, progress in model.historyLaidOut(version: version, madeProgress: progress) }
+            onLayout: { version, progress in model.historyLaidOut(version: version, madeProgress: progress) },
+            spacingBefore: { previous, row in row.role.spacing(after: previous?.role) }
         ) { row in
             // The list bridges the current environment into its hosting roots.
             AnyView(rowView(row))
@@ -93,7 +104,7 @@ struct ChatTranscriptView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

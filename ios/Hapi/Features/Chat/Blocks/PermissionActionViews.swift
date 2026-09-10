@@ -35,6 +35,7 @@ private struct PermissionActionsRow: View {
     let tool: ChatToolCall
     let requestId: String
     let interactions: ChatInteractor
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let override = interactions.permissionOverrides[requestId]
@@ -47,12 +48,16 @@ private struct PermissionActionsRow: View {
             let canAllowAllEdits = interactions.flavor == "claude"
                 && PermissionGates.editTools.contains(tool.name)
 
-            HStack(spacing: 8) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(spacing: 8))
+            layout {
                 Button {
                     interactions.resolvePermission(requestId: requestId, action: .allow)
                 } label: {
                     Text("Allow")
-                        .frame(maxWidth: .infinity)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.bordered)
                 .tint(.green)
@@ -61,7 +66,8 @@ private struct PermissionActionsRow: View {
                     interactions.resolvePermission(requestId: requestId, action: codex ? .abort : .deny)
                 } label: {
                     Text(codex ? String(localized: "Abort") : String(localized: "Deny"))
-                        .frame(maxWidth: .infinity)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
@@ -83,7 +89,7 @@ private struct PermissionActionsRow: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .frame(width: 28, height: 28)
+                            .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
                 }

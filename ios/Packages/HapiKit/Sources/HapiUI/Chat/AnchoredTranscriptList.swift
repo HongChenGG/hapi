@@ -19,12 +19,14 @@ public struct AnchoredTranscriptList<Item: Identifiable & Equatable>: UIViewCont
     public var historyControlID: String
     public var onViewport: (TranscriptViewport) -> Void
     public var onLayout: (Int, Bool) -> Void
+    public var spacingBefore: (Item?, Item) -> CGFloat
     public var content: (Item) -> AnyView
     fileprivate var environment = EnvironmentValues()
 
     public init(items: [Item], historyVersion: Int, jumpToken: Int, historyControlID: String,
                 onViewport: @escaping (TranscriptViewport) -> Void,
                 onLayout: @escaping (Int, Bool) -> Void,
+                spacingBefore: @escaping (Item?, Item) -> CGFloat = { _, _ in 12 },
                 content: @escaping (Item) -> AnyView) {
         self.items = items
         self.historyVersion = historyVersion
@@ -32,6 +34,7 @@ public struct AnchoredTranscriptList<Item: Identifiable & Equatable>: UIViewCont
         self.historyControlID = historyControlID
         self.onViewport = onViewport
         self.onLayout = onLayout
+        self.spacingBefore = spacingBefore
         self.content = content
     }
 
@@ -60,9 +63,14 @@ final class TranscriptLayout: UICollectionViewLayout {
     private var ids: [String] = []
     private var indicesByID: [String: Int] = [:]
     private var heights: [String: CGFloat] = [:]
+    // Preserve enough estimated space for the current partial row to remain
+    // visible while invalidated measurements are replaced. This is not a
+    // cached measurement and must never be used to clamp a reading offset.
+    private var anchorHeightEstimate: (id: String, height: CGFloat)?
     private var frames: [CGRect] = []
     private var attributes: [UICollectionViewLayoutAttributes?] = []
     private var width: CGFloat = 0
+    private var spacingBefore: [CGFloat] = []
     private var contentHeight: CGFloat = 0
     private var dirtyFromIndex: Int? = 0
     #if DEBUG
@@ -70,11 +78,21 @@ final class TranscriptLayout: UICollectionViewLayout {
     private(set) var visibleQueryProbeCount = 0
     #endif
 
-    func setItems(_ ids: [String], width: CGFloat) {
+    func setItems(_ ids: [String], width: CGFloat, spacingBefore: [CGFloat]? = nil,
+                  invalidateMeasurements: Bool = false) {
+        let spacing = spacingBefore ?? Array(repeating: CGFloat(12), count: ids.count)
+        precondition(spacing.count == ids.count)
         let structureChanged = self.ids != ids
-        guard structureChanged || self.width != width else { return }
-        if abs(self.width - width) > 0.5 { heights.removeAll() }
+        guard structureChanged || self.width != width || self.spacingBefore != spacing || invalidateMeasurements else { return }
+        if invalidateMeasurements || abs(HapiReadingLayout.contentWidth(in: self.width) - HapiReadingLayout.contentWidth(in: width)) > 0.5 {
+            anchorHeightEstimate = anchorForUpdate.flatMap { anchor in
+                guard let index = indicesByID[anchor.id], frames.indices.contains(index) else { return nil }
+                return (anchor.id, max(frames[index].height, 1 - anchor.offset))
+            }
+            heights.removeAll()
+        }
         self.width = width
+        self.spacingBefore = spacing
         if structureChanged {
             self.ids = ids
             indicesByID.removeAll(keepingCapacity: true)
@@ -87,23 +105,31 @@ final class TranscriptLayout: UICollectionViewLayout {
         invalidateLayout()
     }
 
+    private func estimatedHeight(for id: String) -> CGFloat {
+        if let height = heights[id] { return height }
+        if let estimate = anchorHeightEstimate, estimate.id == id { return estimate.height }
+        return 100
+    }
+
     override func prepare() {
         super.prepare()
         guard let start = dirtyFromIndex else { return }
         dirtyFromIndex = nil
-        var y: CGFloat = start == 0 ? 10 : frames[start - 1].maxY + 10
+        var y: CGFloat = start == 0 ? 0 : frames[start - 1].maxY
+        let contentWidth = HapiReadingLayout.contentWidth(in: width)
         for index in start..<ids.count {
-            let height = heights[ids[index]] ?? 100
-            let frame = CGRect(x: 12, y: y, width: max(1, width - 24), height: height)
+            y += spacingBefore[index]
+            let height = estimatedHeight(for: ids[index])
+            let frame = CGRect(x: (width - contentWidth) / 2, y: y, width: contentWidth, height: height)
             if frame != frames[index] {
                 frames[index] = frame
                 // Never mutate attributes already handed to UIKit. Recreate
                 // them lazily only if this row is actually requested again.
                 attributes[index] = nil
             }
-            y += height + 10
+            y += height
         }
-        contentHeight = y
+        contentHeight = y + 12
     }
 
     override var collectionViewContentSize: CGSize { CGSize(width: width, height: contentHeight) }
@@ -164,13 +190,19 @@ final class TranscriptLayout: UICollectionViewLayout {
         let index = originalAttributes.indexPath.item
         guard ids.indices.contains(index), let view = collectionView else { return context }
         let height = max(1, preferredAttributes.size.height)
-        let delta = height - (heights[ids[index]] ?? 100)
+        let delta = height - estimatedHeight(for: ids[index])
         heights[ids[index]] = height
+        if anchorHeightEstimate?.id == ids[index] { anchorHeightEstimate = nil }
         dirtyFromIndex = min(dirtyFromIndex ?? index, index)
         context.invalidateItems(at: [preferredAttributes.indexPath])
         let viewportTop = view.contentOffset.y + view.adjustedContentInset.top
         if followsTail || originalAttributes.frame.maxY <= viewportTop {
             context.contentOffsetAdjustment.y += delta
+        } else if originalAttributes.frame.minY <= viewportTop,
+                  originalAttributes.frame.minY + height <= viewportTop {
+            // A font reduction can make the first partial row shorter than
+            // the reading offset. Keep its last point visible, not a later row.
+            context.contentOffsetAdjustment.y += originalAttributes.frame.minY + height - 1 - viewportTop
         }
         return context
     }
@@ -181,8 +213,10 @@ final class TranscriptLayout: UICollectionViewLayout {
         if followsTail { return CGPoint(x: proposedContentOffset.x, y: bottomOffset(view)) }
         if let anchor = anchorForUpdate, let index = indicesByID[anchor.id],
            let frame = layoutAttributesForItem(at: IndexPath(item: index, section: 0))?.frame {
+            // Only clamp against a measured height, never the temporary estimate.
+            let offset = heights[anchor.id] == nil ? anchor.offset : max(anchor.offset, 1 - frame.height)
             return CGPoint(x: proposedContentOffset.x,
-                           y: frame.minY - anchor.offset - view.adjustedContentInset.top)
+                           y: frame.minY - offset - view.adjustedContentInset.top)
         }
         return proposedContentOffset
     }
@@ -237,6 +271,7 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
     private var values: [String: Item] = [:]
     private var applying = false
     private var configuredWidth: CGFloat = 0
+    private var configuredSpacing: [CGFloat] = []
     private var renderedHistoryVersion = -1
     private var lastJumpToken = 0
     private var reportScheduled = false
@@ -268,7 +303,7 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
             #if DEBUG
             self.cellConfigurationCount += 1
             #endif
-            let width = max(1, view.bounds.width - 24)
+            let width = HapiReadingLayout.contentWidth(in: view.bounds.width)
             cell.contentConfiguration = UIHostingConfiguration {
                 TranscriptHostedRow(item: item, content: self.content)
                     .id(id)
@@ -333,7 +368,20 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
         let oldIDs = Set(items.map(\.id))
         let oldHeight = layout.collectionViewContentSize.height
         let widthChanged = abs(configuredWidth - collection.bounds.width) > 0.5
-        let changed = next.items.filter { widthChanged || values[$0.id] != $0 }.map(\.id)
+        let contentWidthChanged = abs(HapiReadingLayout.contentWidth(in: configuredWidth)
+            - HapiReadingLayout.contentWidth(in: collection.bounds.width)) > 0.5
+        let metricsChanged = configuration.map {
+            $0.environment.dynamicTypeSize != next.environment.dynamicTypeSize
+                || $0.environment.legibilityWeight != next.environment.legibilityWeight
+                || $0.environment.hapiTypography != next.environment.hapiTypography
+                || $0.environment.locale != next.environment.locale
+                || $0.environment.layoutDirection != next.environment.layoutDirection
+        } ?? true
+        let spacing = next.items.enumerated().map { index, item in
+            max(0, next.spacingBefore(index > 0 ? next.items[index - 1] : nil, item))
+        }
+        let spacingChanged = configuredSpacing != spacing
+        let changed = next.items.filter { contentWidthChanged || metricsChanged || values[$0.id] != $0 }.map(\.id)
         let structureChanged = items.map(\.id) != next.items.map(\.id)
         let jump = next.jumpToken != lastJumpToken
         lastJumpToken = next.jumpToken
@@ -348,7 +396,8 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
         items = next.items
         values = nextValues
         configuredWidth = collection.bounds.width
-        guard structureChanged || !changed.isEmpty else {
+        configuredSpacing = spacing
+        guard structureChanged || widthChanged || metricsChanged || spacingChanged || !changed.isEmpty else {
             if jump { layout.correctOffset(to: layout.bottomOffset(collection)) }
             layout.anchorForUpdate = nil
             acknowledgeLayout(version: next.historyVersion, madeProgress: false)
@@ -356,7 +405,8 @@ public final class TranscriptCollectionController<Item: Identifiable & Equatable
             return
         }
         applying = true
-        layout.setItems(items.map(\.id), width: configuredWidth)
+        layout.setItems(items.map(\.id), width: configuredWidth, spacingBefore: spacing,
+                        invalidateMeasurements: metricsChanged)
         var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
         snapshot.appendSections([0])
         snapshot.appendItems(items.map(\.id))
