@@ -321,7 +321,15 @@ function handleResponse(
                     if (match) {
                         void (async () => {
                             try {
-                                await session.runRuntimeMutation(async () => {
+                                const applied = await session.runRuntimeMutation(async () => {
+                                    // Re-check under the lease: the gate above ran before
+                                    // any queued user selection was granted the mutation
+                                    // lease. A selection that got there first must win, and
+                                    // applying the launch model over it would silently
+                                    // revert the user's own choice.
+                                    if (session.explicitModelSelection) {
+                                        return false;
+                                    }
                                     await sendPiRpcAndWait(session, transport, {
                                         type: 'set_model',
                                         provider: match.provider,
@@ -330,8 +338,13 @@ function handleResponse(
                                     session.currentModel = match.modelId;
                                     session.currentProvider = match.provider;
                                     persistSelectedPiModel(session);
+                                    return true;
                                 }, { poisonOnError: (error) => error instanceof PiRpcTimeoutError });
-                                logger.debug(`[pi] Startup model applied: ${match.provider}/${match.modelId}`);
+                                if (applied) {
+                                    logger.debug(`[pi] Startup model applied: ${match.provider}/${match.modelId}`);
+                                } else {
+                                    logger.debug('[pi] Startup model skipped: an explicit selection acquired the mutation lease first');
+                                }
                             } catch (error) {
                                 if (error instanceof PiRpcTimeoutError) {
                                     onStartupFailure?.(new Error(`Pi startup model outcome is indeterminate: ${error.message}`));

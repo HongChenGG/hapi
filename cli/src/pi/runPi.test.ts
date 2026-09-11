@@ -1687,6 +1687,60 @@ describe('Pi built-in slash commands', () => {
         await running;
     });
 
+    it('keeps a queued picker selection when discovery lands while the runtime mutation lock is held', async () => {
+        const running = runPi({ workingDirectory: '/work', model: 'startup-model' });
+        await vi.waitFor(() => expect(harness.onEvent).not.toBeNull());
+        harness.onEvent!({
+            type: 'response', command: 'get_state', success: true,
+            data: { sessionId: 'pi-lock-session', sessionFile: '/tmp/pi-lock.jsonl', isStreaming: false },
+        });
+        await completeHistoryInitialization();
+
+        const setConfig = harness.rpcHandlers.get(RPC_METHODS.SetSessionConfig)!;
+
+        // Hold the runtime-mutation lock with an unrelated config change.
+        const effortPromise = setConfig({ effort: 'high' });
+        await vi.waitFor(() => expect(harness.sent).toContainEqual(expect.objectContaining({ type: 'set_thinking_level' })));
+
+        // The user's model pick is only *queued* behind that lock.
+        const modelPromise = setConfig({ model: { provider: 'provider', modelId: 'user-model' } });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(harness.sent.filter((item) => (item as { type?: string }).type === 'set_model')).toHaveLength(0);
+
+        // Startup discovery lands while the lock is still held: the startup
+        // bootstrap is scheduled behind the pending user selection.
+        harness.onEvent!({
+            type: 'response', command: 'get_available_models', success: true,
+            data: { models: [
+                { id: 'startup-model', provider: 'provider' },
+                { id: 'user-model', provider: 'provider' },
+            ] },
+        });
+
+        // Release the lock: the user's selection runs first and the startup
+        // bootstrap must not be applied over it afterwards.
+        const setThinking = harness.sent.find((item) => (item as { type?: string }).type === 'set_thinking_level') as { id: string };
+        harness.onEvent!({ type: 'response', id: setThinking.id, command: 'set_thinking_level', success: true });
+        await expect(effortPromise).resolves.toBeDefined();
+
+        await vi.waitFor(() => expect(harness.sent.filter((item) => (item as { type?: string }).type === 'set_model')).toHaveLength(1));
+        const modelCommand = harness.sent.filter((item) => (item as { type?: string }).type === 'set_model')[0] as { id: string };
+        expect(modelCommand).toMatchObject({ provider: 'provider', modelId: 'user-model' });
+        harness.onEvent!({
+            type: 'response', id: modelCommand.id, command: 'set_model', success: true,
+            data: { id: 'user-model', provider: 'provider' },
+        });
+        await expect(modelPromise).resolves.toBeDefined();
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const switches = harness.sent.filter((item) => (item as { type?: string }).type === 'set_model');
+        expect(switches).toHaveLength(1);
+        expect(switches[0]).toMatchObject({ provider: 'provider', modelId: 'user-model' });
+
+        harness.onError?.(new Error('finish test'));
+        await running;
+    });
+
     it('recovers /model from an empty model cache by retrying discovery', async () => {
         const { running, onUserMessage } = await startReadySession();
         // No get_available_models was answered at startup: the cache is empty
