@@ -239,7 +239,7 @@ func toolFilePath(_ tool: ChatToolCall) -> String? {
     }
     // Generic `path` often identifies a directory (LS, search, MCP). Do not
     // offer a file viewer unless this is a known file operation.
-    guard ["Read", "Write", "Edit", "MultiEdit", "NotebookRead", "NotebookEdit"].contains(tool.name),
+    guard ["Read", "Write", "Edit", "MultiEdit", "NotebookRead", "NotebookEdit"].contains(toolPresentationName(tool.name)),
           let path = chatInputString(tool.input, ["path"]), !path.isEmpty else { return nil }
     return path
 }

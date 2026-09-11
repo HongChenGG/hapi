@@ -85,6 +85,13 @@ opening another SSE subscription. Closing returns to the reading anchor;
 as labeled, read-only snapshots. Large text is loaded in 20,000-character parts
 and can be copied in full; large diffs use paged source instead of eager rows.
 
+The inspector recognizes namespaced command/script/patch calls. File reads use
+source-language highlighting; web/agent prose uses Markdown (large documents
+fall back to paged source). Common nested result envelopes are unwrapped, with
+command exit/status metadata kept visible. **Source** reveals the original
+input/result, including fields not shown in the preview; mixed text/media
+results stay JSON instead of losing non-text blocks.
+
 The app-hosted suite covers selection, live updates, native sheet dismissal,
 surface handoffs, Unicode paging, and reading-position preservation. Transcript
 specimens run the real ChatModel/ChatTranscriptView with fake HTTP and closed

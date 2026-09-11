@@ -16,10 +16,7 @@ extension HapiTypography {
 /// intact: a useful activity summary is not a replacement for the recorded call.
 func toolSummaryPresentation(_ tool: ChatToolCall, basePath: String?) -> ToolCardPresentation {
     var canonical = tool
-    if canonical.name.hasPrefix("functions.") {
-        canonical.name = String(canonical.name.dropFirst("functions.".count))
-    }
-    if canonical.name == "exec_command" { canonical.name = "Bash" }
+    canonical.name = toolPresentationName(tool.name)
     var presentation = toolCardPresentation(canonical, basePath: basePath)
     let input = tool.input
 

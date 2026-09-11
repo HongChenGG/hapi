@@ -35,7 +35,7 @@ final class ToolCallLayoutTests: XCTestCase {
     }
 
     func testSummaryPreviewIsOneLineAndRemainsBoundedAtAccessibilitySizes() {
-        for name in ["Bash", "CodexBash"] {
+        for name in ["Bash", "CodexBash", "exec_command", "functions.exec_command"] {
             for size in [DynamicTypeSize.large, .accessibility5] {
                 let oneLine = height(of: block(name: name, command: "cat <<'EOF'"), size: size)
                 let longScript = height(of: block(name: name, command: script), size: size)
@@ -74,7 +74,7 @@ final class ToolCallLayoutTests: XCTestCase {
     }
 
     func testInspectorCommandKeepsTheCompleteScript() {
-        for name in ["Bash", "CodexBash"] {
+        for name in ["Bash", "CodexBash", "exec_command", "functions.exec_command"] {
             let longBlock = block(name: name, command: script)
             XCTAssertEqual(toolCardPresentation(longBlock.tool, basePath: nil).subtitle, script)
             XCTAssertEqual(chatTerminalCommand(longBlock.tool.input), script)
