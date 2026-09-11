@@ -275,6 +275,9 @@ function handleResponse(
                 if (modelId) {
                     session.currentModel = modelId;
                 }
+                // An accepted set_model is an explicit selection: never let a
+                // late startup-model attempt overwrite it.
+                session.explicitModelSelection = true;
                 if (data.provider && data.provider.length > 0) {
                     session.currentProvider = data.provider;
                 }
@@ -304,15 +307,17 @@ function handleResponse(
                     piAvailableModels: models,
                 }));
 
-                // Apply the requested startup model only after confirming it exists
-                // in Pi's available models and Pi accepts set_model. Commit
-                // currentModel/currentProvider only on success so the hub does not
-                // persist a model Pi rejected or never had. Fire-and-forget the
-                // await so resolving the get_available_models RPC itself is not
-                // blocked (it may be awaited by ListPiModels).
-                if (session.initialModel && transport) {
-                    const match = models.find((m) => m.modelId === session.initialModel)
-                        ?? models.find((m) => `${m.provider}/${m.modelId}` === session.initialModel);
+                // The startup model is a *one-shot* bootstrap. It is applied only on
+                // the first discovery that can act on it, and only while the user has
+                // not picked a model in this session. Re-applying it on every response
+                // made any later model-list refresh (the web picker polls ListPiModels)
+                // silently revert the user's own selection back to the launch model.
+                const startupModel = session.initialModel;
+                // Consume regardless of outcome: the startup model gets exactly one chance.
+                if (startupModel) session.initialModel = null;
+                if (startupModel && transport && !session.explicitModelSelection) {
+                    const match = models.find((m) => m.modelId === startupModel)
+                        ?? models.find((m) => `${m.provider}/${m.modelId}` === startupModel);
                     if (match) {
                         void (async () => {
                             try {
@@ -343,10 +348,13 @@ function handleResponse(
                             session.resolveStartupModelSettled?.();
                         })();
                     } else {
-                        logger.debug(`[pi] Startup model not found in available models: ${session.initialModel}`);
+                        logger.debug(`[pi] Startup model not found in available models: ${startupModel}`);
                         session.resolveStartupModelSettled?.();
                     }
                 } else {
+                    if (startupModel && session.explicitModelSelection) {
+                        logger.debug('[pi] Startup model skipped: session already has an explicit model selection');
+                    }
                     session.resolveStartupModelSettled?.();
                 }
             } else {

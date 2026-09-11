@@ -844,6 +844,87 @@ describe('wireTransportEvents', () => {
         }
     });
 
+    it('applies startup model only once across repeated get_available_models responses (does not revert user switch on list refresh)', async () => {
+        vi.useFakeTimers();
+        try {
+            session = createMockSession('startup-model');
+            const transport = createMockTransport();
+            wireTransportEvents(transport, session, []);
+
+            // First discovery: applies startup model
+            emitEvent({
+                type: 'response',
+                command: 'get_available_models',
+                success: true,
+                data: { models: [{ id: 'startup-model', provider: 'provider' }, { id: 'user-model', provider: 'provider' }] },
+            });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(transport.send).toHaveBeenCalledTimes(1);
+            expect(transport.send).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'set_model', provider: 'provider', modelId: 'startup-model',
+            }));
+
+            // Simulate user explicitly switching to another model
+            session.explicitModelSelection = true;
+            session.currentModel = 'user-model';
+
+            // Subsequent discovery (e.g. web UI refetch on window focus): must NOT re-apply startup model
+            (transport.send as any).mockClear();
+            emitEvent({
+                type: 'response',
+                command: 'get_available_models',
+                success: true,
+                data: { models: [{ id: 'startup-model', provider: 'provider' }, { id: 'user-model', provider: 'provider' }] },
+            });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(transport.send).not.toHaveBeenCalled();
+            expect(session.currentModel).toBe('user-model');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not apply startup model if user already selected a model before first discovery', async () => {
+        vi.useFakeTimers();
+        try {
+            session = createMockSession('startup-model');
+            const transport = createMockTransport();
+            wireTransportEvents(transport, session, []);
+
+            // User selected model before discovery returned
+            session.explicitModelSelection = true;
+            session.currentModel = 'user-picked';
+
+            emitEvent({
+                type: 'response',
+                command: 'get_available_models',
+                success: true,
+                data: { models: [{ id: 'startup-model', provider: 'provider' }] },
+            });
+            await vi.advanceTimersByTimeAsync(0);
+            expect(transport.send).not.toHaveBeenCalled();
+            await expect(session.startupModelSettled).resolves.toBeUndefined();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('marks explicitModelSelection when set_model response arrives', () => {
+        const transport = createMockTransport();
+        wireTransportEvents(transport, session, []);
+        expect(session.explicitModelSelection).toBe(false);
+
+        emitEvent({
+            type: 'response',
+            command: 'set_model',
+            success: true,
+            data: { id: 'new-model', provider: 'p' },
+        });
+
+        expect(session.explicitModelSelection).toBe(true);
+        expect(session.currentModel).toBe('new-model');
+    });
+
     it('handles get_commands response — caches commands', () => {
         const transport = createMockTransport();
         wireTransportEvents(transport, session, []);
