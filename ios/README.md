@@ -36,9 +36,35 @@ changes under `ios/**` and `shared/fixtures/**`).
 
 ### Localization catalog
 
-`Hapi/Resources/Localizable.xcstrings` is hand-maintained. Compiler string
-extraction stays disabled so opening or building the project does not rewrite
-the catalog with decorative or intentionally verbatim strings.
+`Hapi/Resources/Localizable.xcstrings` is **manually managed**, including every
+entry's `"extractionState" : "manual"`. Keep `SWIFT_EMIT_LOC_STRINGS = NO` for the
+app/extension in Debug and Release. That setting disables compiler extraction;
+it does **not** prevent the Xcode editor from synchronizing or saving a catalog.
+Unspecified ownership can still turn entries into `stale` during synchronization.
+
+Use Xcode's native catalog formatting (key order, spacing, escaping), not a
+generic JSON formatter. After adding or editing translations, run from repo root:
+
+```sh
+python3 ios/scripts/localizations.py --check   # read-only ownership check; no Xcode needed
+python3 ios/scripts/localizations.py --fix     # macOS/Xcode: mark manual, normalize native format
+```
+
+The normalizer uses `xcstringstool` on a temporary copy, verifies that all keys,
+translations, plural variations and comments survive, and writes only if needed.
+It never deletes real entries: review/remove unwanted auto-extracted additions
+before `--fix`, rather than silently making them permanent. Keep dynamic values
+and decorative text verbatim in SwiftUI where they are not localization keys.
+
+CI checks manual ownership, tests normalization idempotence, and verifies that
+building/testing does not rewrite the catalog. Formatting is delegated to the
+installed Xcode rather than reimplementing its ordering in Python; `--check`
+does not enforce one Xcode version's byte-level formatting on another version.
+
+After migrating an existing checkout, use **Product → Clean Build Folder** if
+Xcode still synchronizes old extraction results, then rebuild/reopen and inspect
+the diff. Do not hide the file with `.gitignore`, `skip-worktree`, or restore it
+unconditionally: real translation edits must remain visible and committed.
 
 ### Reading typography
 
