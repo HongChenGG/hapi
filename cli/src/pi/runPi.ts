@@ -863,16 +863,10 @@ export async function runPi(opts: {
             // see the latest catalog too.
             try {
                 const data = await sendPiRpcAndWait(piSession, transport, { type: 'get_available_models' });
+                // The response was already parsed, cached and (when it changed)
+                // versioned by the transport event handler before this await
+                // resolved — see the get_available_models branch in loop.ts.
                 const models = parsePiModels(data);
-                // This handler is polled every 15s by each active Pi session
-                // view: only version the session metadata (hub DB write +
-                // Socket.IO/SSE broadcast) when the catalog actually changed.
-                // Treat a successful empty models list as authoritative too.
-                const modelsChanged = JSON.stringify(piSession.cachedPiModels) !== JSON.stringify(models);
-                piSession.cachedPiModels = models;
-                if (modelsChanged) {
-                    piSession.updateMetadata(meta => ({ ...meta, piAvailableModels: models }));
-                }
                 return { success: true, availableModels: models, currentModelId: piSession.currentModel };
             } catch (error) {
                 logger.debug('[pi] ListPiModels live query failed, falling back to cache:', error);
