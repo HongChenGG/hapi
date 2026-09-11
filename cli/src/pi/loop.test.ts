@@ -781,6 +781,37 @@ describe('wireTransportEvents', () => {
         ]);
     });
 
+    it('only versions pi metadata when the polled catalog actually changes, and clears it on a successful empty catalog', () => {
+        const transport = createMockTransport();
+        wireTransportEvents(transport, session, []);
+
+        // ListPiModels re-queries get_available_models on every poll (15s per
+        // open session), so identical responses must not bump the metadata
+        // version — that would be a hub DB write + broadcast every poll.
+        const emitCatalog = (data: unknown) => emitEvent({
+            type: 'response',
+            command: 'get_available_models',
+            success: true,
+            data,
+        });
+
+        emitCatalog({ models: [{ id: 'gpt-4o', provider: 'openai' }] });
+        emitCatalog({ models: [{ id: 'gpt-4o', provider: 'openai' }] });
+        expect(session.client.updateMetadata).toHaveBeenCalledTimes(1);
+        expect(session.cachedPiModels).toEqual([{ provider: 'openai', modelId: 'gpt-4o' }]);
+
+        // A successful empty catalog is authoritative: it clears the cache and
+        // is versioned once.
+        emitCatalog({ models: [] });
+        emitCatalog({ models: [] });
+        expect(session.cachedPiModels).toEqual([]);
+        expect(session.client.updateMetadata).toHaveBeenCalledTimes(2);
+        const updateMetadata = session.client.updateMetadata as ReturnType<typeof vi.fn>;
+        expect(updateMetadata.mock.calls[1]![0]({ path: '/tmp/test', host: 'localhost' })).toMatchObject({
+            piAvailableModels: [],
+        });
+    });
+
     it('settles the startup-model gate when discovery returns no models', async () => {
         session = createMockSession('startup-model');
         const transport = createMockTransport();

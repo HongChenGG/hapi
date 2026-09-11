@@ -299,14 +299,22 @@ function handleResponse(
         }
         case 'get_available_models': {
             const models = parsePiModels(response.data);
-            if (models.length > 0) {
-                session.cachedPiModels = models;
-                logger.debug(`[pi] Available models: ${models.map((m) => m.modelId).join(', ')}`);
+            // Cache and broadcast metadata are synchronized here for every
+            // response, including empty ones: ListPiModels re-queries this RPC on
+            // each poll (every 15s per open session), so an unchanged catalog
+            // must not version the metadata — that is a hub DB write plus a
+            // Socket.IO/SSE broadcast on every poll.
+            const modelsChanged = JSON.stringify(session.cachedPiModels) !== JSON.stringify(models);
+            session.cachedPiModels = models;
+            if (modelsChanged) {
+                logger.debug(`[pi] Available models: ${models.map((m) => m.modelId).join(', ') || '(none)'}`);
                 session.updateMetadata((meta) => ({
                     ...meta,
                     piAvailableModels: models,
                 }));
+            }
 
+            if (models.length > 0) {
                 // The startup model is a *one-shot* bootstrap. It is applied only on
                 // the first discovery that can act on it, and only while the user has
                 // not picked a model in this session. Re-applying it on every response
