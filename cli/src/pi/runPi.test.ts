@@ -1570,6 +1570,123 @@ describe('Pi built-in slash commands', () => {
         await running;
     });
 
+    it('does not re-apply the startup model when discovery lands while the web picker switch is in flight', async () => {
+        const running = runPi({ workingDirectory: '/work', model: 'startup-model' });
+        await vi.waitFor(() => expect(harness.onEvent).not.toBeNull());
+        harness.onEvent!({
+            type: 'response', command: 'get_state', success: true,
+            data: { sessionId: 'pi-picker-session', sessionFile: '/tmp/pi-picker.jsonl', isStreaming: false },
+        });
+        await completeHistoryInitialization();
+
+        // The user picks a model from the web UI before Pi's first discovery
+        // has been answered, so its set_model is still awaiting confirmation.
+        const setConfig = harness.rpcHandlers.get(RPC_METHODS.SetSessionConfig)!;
+        const configPromise = setConfig({ model: { provider: 'provider', modelId: 'user-model' } });
+        await vi.waitFor(() => expect(harness.sent).toContainEqual(expect.objectContaining({
+            type: 'set_model', provider: 'provider', modelId: 'user-model',
+        })));
+
+        // Discovery lands mid-switch: the launch-time model must not be applied
+        // over the in-flight explicit selection.
+        harness.onEvent!({
+            type: 'response', command: 'get_available_models', success: true,
+            data: { models: [
+                { id: 'startup-model', provider: 'provider' },
+                { id: 'user-model', provider: 'provider' },
+            ] },
+        });
+        // Confirm the user's switch, then let the runtime-mutation queue drain:
+        // the startup model would be applied behind this mutation, so a second
+        // set_model appearing here means the launch model came back.
+        const pickerSwitch = harness.sent.find((item) => (item as { type?: string }).type === 'set_model') as { id: string };
+        harness.onEvent!({
+            type: 'response', id: pickerSwitch.id, command: 'set_model', success: true,
+            data: { id: 'user-model', provider: 'provider' },
+        });
+        await expect(configPromise).resolves.toMatchObject({
+            applied: { model: { provider: 'provider', modelId: 'user-model' } },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const switches = harness.sent.filter((item) => (item as { type?: string }).type === 'set_model');
+        expect(switches).toHaveLength(1);
+        expect(switches[0]).toMatchObject({ provider: 'provider', modelId: 'user-model' });
+
+        harness.onError?.(new Error('finish test'));
+        await running;
+    });
+
+    it('keeps a /model switch when a discovery refresh lands before the switch settles', async () => {
+        const running = runPi({ workingDirectory: '/work', model: 'startup-model' });
+        await vi.waitFor(() => expect(harness.onEvent).not.toBeNull());
+        harness.onEvent!({
+            type: 'response', command: 'get_state', success: true,
+            data: { sessionId: 'pi-slash-model-session', sessionFile: '/tmp/pi-slash-model.jsonl', isStreaming: false },
+        });
+        await completeHistoryInitialization();
+        // Warm the command cache: slash-message handling consults discovered
+        // commands to decide extension-vs-builtin precedence.
+        const getCommands = harness.sent.find((item) => (item as { type?: string }).type === 'get_commands') as { id: string };
+        harness.onEvent!({
+            type: 'response', id: getCommands.id, command: 'get_commands', success: true,
+            data: { commands: [{ name: 'test-extension', description: 'Test extension', source: 'extension' }] },
+        });
+        const onUserMessage = harness.session.onUserMessage.mock.calls.at(-1)![0] as (message: {
+            role: 'user';
+            content: { type: 'text'; text: string };
+        }, localId: string) => void;
+
+        // Startup discovery applies the launch model exactly once.
+        harness.onEvent!({
+            type: 'response', command: 'get_available_models', success: true,
+            data: { models: [
+                { id: 'startup-model', provider: 'provider' },
+                { id: 'user-model', provider: 'provider' },
+            ] },
+        });
+        await vi.waitFor(() => expect(harness.sent).toContainEqual(expect.objectContaining({
+            type: 'set_model', provider: 'provider', modelId: 'startup-model',
+        })));
+        const startupSwitch = harness.sent.find((item) => (item as { type?: string }).type === 'set_model') as { id: string };
+        harness.onEvent!({
+            type: 'response', id: startupSwitch.id, command: 'set_model', success: true,
+            data: { id: 'startup-model', provider: 'provider' },
+        });
+        await vi.waitFor(() => expect(harness.sent.filter((item) => (item as { type?: string }).type === 'set_model')).toHaveLength(1));
+
+        // The user switches with /model; a list refresh lands before Pi confirms.
+        onUserMessage({ role: 'user', content: { type: 'text', text: '/model user-model' } }, 'switch-id');
+        await vi.waitFor(() => expect(harness.sent.filter((item) => (item as { type?: string }).type === 'set_model')).toHaveLength(2));
+        const userSwitch = harness.sent.filter((item) => (item as { type?: string }).type === 'set_model')[1] as { id: string };
+        expect(userSwitch).toMatchObject({ provider: 'provider', modelId: 'user-model' });
+
+        harness.onEvent!({
+            type: 'response', command: 'get_available_models', success: true,
+            data: { models: [
+                { id: 'startup-model', provider: 'provider' },
+                { id: 'user-model', provider: 'provider' },
+            ] },
+        });
+        // Confirm the /model switch, then drain the mutation queue: the refresh
+        // must not queue a startup-model re-application behind it.
+        harness.onEvent!({
+            type: 'response', id: userSwitch.id, command: 'set_model', success: true,
+            data: { id: 'user-model', provider: 'provider' },
+        });
+        await vi.waitFor(() => expect(harness.session.sendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
+            message: 'Model switched to user-model',
+        })));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const switches = harness.sent.filter((item) => (item as { type?: string }).type === 'set_model');
+        expect(switches).toHaveLength(2);
+        expect(switches[1]).toMatchObject({ provider: 'provider', modelId: 'user-model' });
+
+        harness.onError?.(new Error('finish test'));
+        await running;
+    });
+
     it('recovers /model from an empty model cache by retrying discovery', async () => {
         const { running, onUserMessage } = await startReadySession();
         // No get_available_models was answered at startup: the cache is empty
