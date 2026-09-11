@@ -2,7 +2,7 @@ import HapiProtocol
 import HapiUI
 import SwiftUI
 
-/// Expanded tool-card body: input rendering per tool kind + the result
+/// Read-only inspector body: input rendering per tool kind + the result
 /// section (the read-only slice of `web/src/components/ToolCard/views/`,
 /// via the Android `ToolBodies` port):
 ///
@@ -20,7 +20,8 @@ struct ToolCallBody: View {
     let basePath: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel(text: String(localized: "Input"))
             ToolInputSection(tool: tool, basePath: basePath)
             ToolResultSection(tool: tool)
         }
@@ -41,7 +42,9 @@ private struct ToolInputSection: View {
         let input = tool.input
         if terminalToolNames.contains(tool.name) {
             if let command = chatTerminalCommand(input) {
-                CodeBlockView(language: "bash", code: command)
+                ToolTextContent(language: "bash", code: command)
+            } else {
+                GenericJSONInput(input: input)
             }
         } else if tool.name == "Edit" {
             if let old = chatInputString(input, ["old_string"]),
@@ -58,7 +61,7 @@ private struct ToolInputSection: View {
             multiEditBody(input)
         } else if tool.name == "Write" {
             if let content = chatInputString(input, ["content", "text"]) {
-                CodeBlockView(
+                ToolTextContent(
                     language: languageForPath(chatInputString(input, ["file_path", "path"])),
                     code: content
                 )
@@ -66,9 +69,8 @@ private struct ToolInputSection: View {
                 GenericJSONInput(input: input)
             }
         } else if tool.name == "CodexDiff" {
-            if let unified = chatInputString(input, ["unified_diff"]),
-               let files = tryParseDiff(unified) {
-                DiffTextView(files: files)
+            if let unified = chatInputString(input, ["unified_diff"]) {
+                ToolDiffContent(text: unified)
             } else {
                 GenericJSONInput(input: input)
             }
@@ -86,11 +88,6 @@ private struct ToolInputSection: View {
             }
         } else if isAskUserQuestionToolName(tool.name) || isRequestUserInputToolName(tool.name) {
             QuestionsReadOnlyView(input: input)
-        } else if tool.name == "Read" || tool.name == "NotebookRead" || tool.name == "LS" {
-            // The title already carries the path; nothing else worth echoing.
-            if let path = chatInputString(input, ["file_path", "path", "notebook_path"]) {
-                SectionLabel(text: chatDisplayPath(path, basePath: basePath))
-            }
         } else {
             GenericJSONInput(input: input)
         }
@@ -131,9 +128,9 @@ private struct BeforeAfterView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel(text: String(localized: "Before"))
-            CodeBlockView(language: language, code: old.isEmpty ? String(localized: "(empty)") : old)
+            ToolTextContent(language: language, code: old.isEmpty ? String(localized: "(empty)") : old)
             SectionLabel(text: String(localized: "After"))
-            CodeBlockView(language: language, code: new.isEmpty ? String(localized: "(empty)") : new)
+            ToolTextContent(language: language, code: new.isEmpty ? String(localized: "(empty)") : new)
         }
     }
 }
@@ -146,9 +143,26 @@ private struct GenericJSONInput: View {
         case nil, .some(.null):
             EmptyView()
         case .some(.string(let text)):
-            CodeBlockView(language: nil, code: text)
+            ToolTextContent(language: nil, code: text)
         case .some(let value):
-            CodeBlockView(language: "json", code: chatPrettyJSON(value))
+            ToolJSONContent(value: value)
+        }
+    }
+}
+
+private struct ToolJSONContent: View {
+    let value: JSONValue
+    @State private var text: String?
+    var body: some View {
+        Group {
+            if let text { ToolTextContent(language: "json", code: text) }
+            else { ProgressView() }
+        }
+        .task(id: value) {
+            let value = value
+            let rendered = await Task.detached(priority: .userInitiated) { chatPrettyJSON(value) }.value
+            guard !Task.isCancelled else { return }
+            text = rendered
         }
     }
 }
@@ -198,49 +212,74 @@ private struct QuestionsReadOnlyView: View {
 
 // MARK: - Result
 
-private let resultRenderCap = 20_000
-
 private struct ToolResultSection: View {
     let tool: ChatToolCall
+    @State private var rendering: ResultRendering?
+    @State private var prepared = false
 
     var body: some View {
-        if let result = tool.result, result != .null,
-           let rendering = resultRendering(result) {
-            VStack(alignment: .leading, spacing: 4) {
-                SectionLabel(text: tool.state == .error
-                    ? String(localized: "Result · error")
-                    : String(localized: "Result"))
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(text: tool.state == .error
+                ? String(localized: "Result · error") : String(localized: "Result"))
+            if let rendering {
                 switch rendering {
-                case .diffs(let files):
-                    DiffTextView(files: files)
-                case .terminal(let text):
-                    TerminalTextView(text: text, isError: tool.state == .error)
-                case .json(let pretty):
-                    CodeBlockView(language: "json", code: pretty)
+                case .diffs(let files): DiffTextView(files: files)
+                case .terminal(let text): ToolTextContent(language: nil, code: text, terminal: true, isError: tool.state == .error)
+                case .json(let text): ToolTextContent(language: "json", code: text)
                 }
+            } else if !prepared {
+                ProgressView()
+            } else {
+                Text(tool.state == .running || tool.state == .pending
+                     ? String(localized: "Waiting for output…") : String(localized: "No output"))
+                    .font(.footnote).foregroundStyle(.secondary)
             }
+        }
+        .task(id: tool.result) {
+            let result = tool.result
+            let next = await Task.detached(priority: .userInitiated) { result.flatMap(resultRendering) }.value
+            guard !Task.isCancelled else { return }
+            rendering = next
+            prepared = true
         }
     }
 }
 
-/// How a tool result renders: parsed diff > extracted text > pretty JSON.
-private enum ResultRendering {
+private enum ResultRendering: Sendable {
     case diffs([DiffFile])
     case terminal(String)
     case json(String)
 }
 
 private func resultRendering(_ result: JSONValue) -> ResultRendering? {
+    if result == .null { return nil }
     if let text = extractResultText(result) {
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return nil
-        }
-        if let files = tryParseDiff(text) {
-            return .diffs(files)
-        }
-        return .terminal(String(text.prefix(resultRenderCap)))
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
+        // Huge diffs use paged source, rather than eagerly making a SwiftUI
+        // row for every line. The complete received content stays accessible.
+        if text.count <= toolTextPageSize, let files = tryParseDiff(text) { return .diffs(files) }
+        return .terminal(text)
     }
-    return .json(String(chatPrettyJSON(result).prefix(resultRenderCap)))
+    return .json(chatPrettyJSON(result))
+}
+
+private struct ToolDiffContent: View {
+    let text: String
+    @State private var files: [DiffFile]?
+    var body: some View {
+        Group {
+            if let files { DiffTextView(files: files) }
+            else { ToolTextContent(language: "diff", code: text) }
+        }
+        .task(id: text) {
+            let text = text
+            let parsed = await Task.detached(priority: .userInitiated) {
+                text.count <= toolTextPageSize ? tryParseDiff(text) : nil
+            }.value
+            guard !Task.isCancelled else { return }
+            files = parsed
+        }
+    }
 }
 
 /// Text of the common result shapes: plain string; `{stdout, stderr}`;

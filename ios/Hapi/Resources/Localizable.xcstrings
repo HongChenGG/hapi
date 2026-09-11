@@ -4330,6 +4330,476 @@
           }
         }
       }
+    },
+    "1 tool call": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次工具调用"
+          }
+        }
+      }
+    },
+    "%lld tool calls": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次工具调用"
+          }
+        }
+      }
+    },
+    "View image": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看图片"
+          }
+        }
+      }
+    },
+    "Show image": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展示图片"
+          }
+        }
+      }
+    },
+    "Show video": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展示视频"
+          }
+        }
+      }
+    },
+    "Share file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享文件"
+          }
+        }
+      }
+    },
+    "Run script": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行脚本"
+          }
+        }
+      }
+    },
+    "Continue command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续命令"
+          }
+        }
+      }
+    },
+    "Wait for result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待结果"
+          }
+        }
+      }
+    },
+    "Expanded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已展开"
+          }
+        }
+      }
+    },
+    "Collapsed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已折叠"
+          }
+        }
+      }
+    },
+    "%lld commands": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条命令"
+          }
+        }
+      }
+    },
+    "%lld edits": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次修改"
+          }
+        }
+      }
+    },
+    "%lld failed tools": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个工具失败"
+          }
+        }
+      }
+    },
+    "%lld other tools": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个其他工具"
+          }
+        }
+      }
+    },
+    "%lld reads": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次读取"
+          }
+        }
+      }
+    },
+    "%lld searches": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次搜索"
+          }
+        }
+      }
+    },
+    "%lld web requests": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次网络请求"
+          }
+        }
+      }
+    },
+    "1 command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 条命令"
+          }
+        }
+      }
+    },
+    "1 edit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次修改"
+          }
+        }
+      }
+    },
+    "1 other tool": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 个其他工具"
+          }
+        }
+      }
+    },
+    "1 read": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次读取"
+          }
+        }
+      }
+    },
+    "1 search": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次搜索"
+          }
+        }
+      }
+    },
+    "1 web request": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次网络请求"
+          }
+        }
+      }
+    },
+    "Agent process": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "子代理执行过程"
+          }
+        }
+      }
+    },
+    "Close details to approve or answer in the conversation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭详情后，可在对话中审批或回答。"
+          }
+        }
+      }
+    },
+    "Completed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "Copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        }
+      }
+    },
+    "Copy full content": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制完整内容"
+          }
+        }
+      }
+    },
+    "Copy input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制输入"
+          }
+        }
+      }
+    },
+    "Copy result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制结果"
+          }
+        }
+      }
+    },
+    "Load more content": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加载更多内容"
+          }
+        }
+      }
+    },
+    "Next tool": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一个工具"
+          }
+        }
+      }
+    },
+    "No agent steps available yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无可显示的子代理步骤。"
+          }
+        }
+      }
+    },
+    "No output": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无输出"
+          }
+        }
+      }
+    },
+    "Previous tool": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一个工具"
+          }
+        }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运行中"
+          }
+        }
+      }
+    },
+    "Showing %lld of %lld parts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已显示 %lld 部分，共 %lld 部分"
+          }
+        }
+      }
+    },
+    "Showing the last available record. Live updates are unavailable for this tool.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在显示最后保留的记录，此工具已无法实时更新。"
+          }
+        }
+      }
+    },
+    "Tool %lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 个工具，共 %lld 个"
+          }
+        }
+      }
+    },
+    "Tool details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工具详情"
+          }
+        }
+      }
+    },
+    "View agent process": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看子代理执行过程"
+          }
+        }
+      }
+    },
+    "View current file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看当前文件"
+          }
+        }
+      }
+    },
+    "View full input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看完整输入"
+          }
+        }
+      }
+    },
+    "View process · %lld steps": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看过程 · %lld 个步骤"
+          }
+        }
+      }
+    },
+    "View tool details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看工具详情"
+          }
+        }
+      }
+    },
+    "Waiting for output…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待输出…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

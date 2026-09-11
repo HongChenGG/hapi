@@ -66,6 +66,37 @@ TEST_RUNNER_HAPI_TYPOGRAPHY_CAPTURE=/tmp/hapi-typography-review \
   ios/scripts/test-transcript.sh -only-testing:HapiTests/TypographySnapshotTests
 ```
 
+### Tool inspection
+
+Tool summaries open a native large sheet instead of expanding their output
+inside the conversation. Groups expand only summary rows; the inspector can
+move between group members while resolving each stable tool ID from live data.
+Group headers prioritize total calls over category counts. Expanded tools retain
+individual recycled rows, joined by continuous surfaces and inset separators.
+File/image summaries show the action and basename; commands use a bounded preview.
+Success is quiet, while running/errors remain visible; every row keeps a 44pt target.
+Edits show their recorded input, with a separate **View current file** action.
+Task/Agent sidechains open a process page; approvals and questions remain in
+the conversation/process, not in the read-only inspector.
+
+Inspection pauses transcript tail-following and hidden history paging, without
+opening another SSE subscription. Closing returns to the reading anchor;
+**Back to latest** explicitly resumes following. Trimmed records remain visible
+as labeled, read-only snapshots. Large text is loaded in 20,000-character parts
+and can be copied in full; large diffs use paged source instead of eager rows.
+
+The app-hosted suite covers selection, live updates, native sheet dismissal,
+surface handoffs, Unicode paging, and reading-position preservation. Transcript
+specimens run the real ChatModel/ChatTranscriptView with fake HTTP and closed
+loopback SSE; sheet specimens are non-networked. Both use deterministic test
+records, not live sessions or App Store screenshots. Capture into a fresh directory:
+
+```sh
+TEST_RUNNER_HAPI_TOOL_CAPTURE=/tmp/hapi-tool-review \
+  ios/scripts/test-transcript.sh -only-testing:HapiTests/ToolInspectionPresentationTests \
+    -only-testing:HapiTests/ToolTranscriptPresentationTests
+```
+
 ### Linux verification (no Mac needed)
 
 `ios/scripts/linux-test.sh` compiles and tests the non-UI targets
