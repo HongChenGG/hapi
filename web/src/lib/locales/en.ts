@@ -519,6 +519,12 @@ export default {
   'files.sort.smallest': 'Smallest first',
   'files.sort.largest': 'Largest first',
 
+  // File context menu
+  'file.menu.title': 'File actions',
+  'file.menu.copyPath': 'Copy path',
+  'file.menu.copyAbsolutePath': 'Copy absolute path',
+  'file.menu.addToComposer': 'Add to composer',
+
   // File page
   'file.page.fallbackName': 'File',
   'file.page.unknownPath': 'Unknown path',

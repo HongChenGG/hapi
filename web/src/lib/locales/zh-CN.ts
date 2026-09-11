@@ -517,6 +517,12 @@ export default {
   'files.sort.smallest': '最小优先',
   'files.sort.largest': '最大优先',
 
+  // 文件右键菜单
+  'file.menu.title': '文件操作',
+  'file.menu.copyPath': '复制路径',
+  'file.menu.copyAbsolutePath': '复制绝对路径',
+  'file.menu.addToComposer': '添加到对话框',
+
   // File page
   'file.page.fallbackName': '文件',
   'file.page.unknownPath': '未知路径',
