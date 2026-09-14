@@ -211,6 +211,36 @@ describe('grokRemoteLauncher runtime config', () => {
         expect(await rpcHandlers.get('listGrokReasoningEffortOptions')?.()).toMatchObject({ success: true, currentValue: 'low' })
     })
 
+    it('listGrokModels handler bounds a stalled live probe to 5s and falls back to the snapshot', async () => {
+        // Stall the probe forever: the handler may only answer through the
+        // 5s Promise.race timeout and the snapshot fallback below it.
+        listGrokModelsMock.mockImplementationOnce(() => new Promise(() => {}))
+        const { session, rpcHandlers } = createSession()
+        await grokRemoteLauncher(session as never, {})
+
+        const handler = rpcHandlers.get('listGrokModels')
+        expect(handler).toBeDefined()
+        // Fake timers only around the handler call: the launcher above ran on
+        // real timers, and the probe timer is created inside the handler.
+        vi.useFakeTimers()
+        try {
+            const pending = handler!() as Promise<Record<string, unknown>>
+            let settled = false
+            void pending.then(() => { settled = true })
+            await vi.advanceTimersByTimeAsync(4_900)
+            expect(settled).toBe(false)
+            await vi.advanceTimersByTimeAsync(200)
+            // The file-level backend stub always reports the grok-a snapshot.
+            expect(await pending).toMatchObject({
+                success: true,
+                availableModels: [{ modelId: 'grok-a' }, { modelId: 'grok-b' }],
+                currentModelId: 'grok-a'
+            })
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it('does not fall back to newSession when a fork child cannot load its native id', async () => {
         const { session } = createSession()
         session.sessionId = 'grok-forked-native'

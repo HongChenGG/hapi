@@ -2092,6 +2092,44 @@ describe('opencodeRemoteLauncher inline model switch', () => {
         });
     });
 
+    it('listOpencodeModels handler bounds a stalled live probe to 5s and falls back to the snapshot', async () => {
+        // Stall the probe forever: the handler may only answer through the
+        // 5s Promise.race timeout and the snapshot fallback below it.
+        listOpencodeModelsMock.mockImplementationOnce(() => new Promise(() => {}));
+        harness.sessionModelsMetadata = {
+            currentModelId: 'ollama/stalled',
+            availableModels: [{ modelId: 'ollama/stalled', name: 'Stalled Fallback' }]
+        };
+        const { session, rpcHandlers } = createSessionStub([
+            { message: 'first', mode: createMode() }
+        ]);
+        await opencodeRemoteLauncher(session as never);
+
+        const handler = rpcHandlers.get('listOpencodeModels');
+        expect(handler).toBeDefined();
+        // Fake timers only around the handler call: the launcher above ran on
+        // real timers, and the probe timer is created inside the handler.
+        vi.useFakeTimers();
+        try {
+            const pending = handler!(undefined) as Promise<Record<string, unknown>>;
+            let settled = false;
+            void pending.then(() => { settled = true; });
+            // Just before the bound the handler must still be waiting...
+            await vi.advanceTimersByTimeAsync(4_900);
+            expect(settled).toBe(false);
+            // ...and right after it the fallback must fire.
+            await vi.advanceTimersByTimeAsync(200);
+            const result = await pending;
+            expect(result).toEqual({
+                success: true,
+                availableModels: [{ modelId: 'ollama/stalled', name: 'Stalled Fallback' }],
+                currentModelId: 'ollama/stalled'
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('registers a listOpencodeReasoningEffortOptions RPC handler that returns ACP options', async () => {
         harness.thoughtLevelOption = {
             id: 'effort',

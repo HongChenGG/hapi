@@ -2101,4 +2101,44 @@ describe('Pi built-in slash commands', () => {
         harness.onError?.(new Error('finish test'));
         await running;
     });
+
+    it('ListPiModels returns the cached catalog when the live re-query fails', async () => {
+        const { running } = await startReadySession();
+
+        // Warm the cache: answer the outstanding startup discovery with a
+        // real catalog (the transport event handler caches it for the
+        // fallback path below).
+        const startup = await vi.waitFor(() => {
+            const found = harness.sent.filter((item) => (item as { type?: string }).type === 'get_available_models').at(-1) as { id: string } | undefined;
+            expect(found).toBeDefined();
+            return found!;
+        });
+        harness.onEvent!({
+            type: 'response', id: startup.id, command: 'get_available_models', success: true,
+            data: { models: [{ id: 'gpt-4o', provider: 'openai' }] },
+        });
+        await vi.waitFor(() => expect(harness.session.rpcHandlerManager.registerHandler).toHaveBeenCalled());
+
+        const listModels = harness.rpcHandlers.get(RPC_METHODS.ListPiModels)!;
+        const listing = listModels({});
+
+        // The handler re-queries Pi live; fail *that* request. The fallback
+        // must serve the cached catalog instead of erroring out.
+        const live = await vi.waitFor(() => {
+            const found = harness.sent.filter((item) => (item as { type?: string }).type === 'get_available_models').at(-1) as { id: string } | undefined;
+            expect(found).toBeDefined();
+            expect(found!.id).not.toBe(startup.id);
+            return found!;
+        });
+        harness.onEvent!({ type: 'response', id: live.id, command: 'get_available_models', success: false, error: 'pi busy' });
+
+        expect(await listing).toEqual({
+            success: true,
+            availableModels: [{ provider: 'openai', modelId: 'gpt-4o' }],
+            currentModelId: undefined,
+        });
+
+        harness.onError?.(new Error('finish test'));
+        await running;
+    });
 });
